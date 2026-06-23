@@ -119,16 +119,20 @@ public class PolicyEngineService {
         try {
             PolicyDecisionEvent event = new PolicyDecisionEvent(
                     UUID.randomUUID(),
-                    incidentId,
+                    decision.getId() != null ? decision.getId() : UUID.randomUUID(),
                     healingActionId,
-                    rec.actionType(),
+                    incidentId,
+                    null,
                     rec.targetResource(),
+                    rec.actionType(),
+                    rec.confidenceScore(),
+                    decision.getActionRiskLevel(),
+                    decision.getBlastRadiusCount(),
+                    decision.getCombinedRiskScore(),
                     decision.getDecision(),
                     decision.getDecisionReason(),
-                    decision.getCombinedRiskScore(),
-                    decision.getApprovalStatus(),
-                    objectMapper.writeValueAsString(rec.parameters()),
-                    decision.getCreatedAt()
+                    decision.getMatchedPolicyId(),
+                    Instant.now()
             );
 
             kafkaTemplate.send(KafkaTopics.POLICY_DECISIONS, rec.targetResource(), event);
