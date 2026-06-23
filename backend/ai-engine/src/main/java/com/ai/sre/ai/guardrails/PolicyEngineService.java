@@ -117,28 +117,24 @@ public class PolicyEngineService {
     }
 
     private void emitDecisionEvent(UUID incidentId, UUID healingActionId, AnalysisEvent.Recommendation rec, PolicyDecision decision) {
-        try {
-            PolicyDecisionEvent event = new PolicyDecisionEvent(
-                    UUID.randomUUID(),
-                    decision.getId() != null ? decision.getId() : UUID.randomUUID(),
-                    healingActionId,
-                    incidentId,
-                    null,
-                    rec.targetResource(),
-                    rec.actionType(),
-                    rec.confidenceScore(),
-                    decision.getActionRiskLevel(),
-                    decision.getBlastRadiusCount(),
-                    decision.getCombinedRiskScore(),
-                    decision.getDecision(),
-                    decision.getDecisionReason(),
-                    decision.getMatchedPolicyId(),
-                    Instant.now()
-            );
+        PolicyDecisionEvent event = new PolicyDecisionEvent(
+                UUID.randomUUID(),
+                decision.getId() != null ? decision.getId() : UUID.randomUUID(),
+                healingActionId,
+                incidentId,
+                null,
+                rec.targetResource(),
+                rec.actionType(),
+                rec.confidenceScore(),
+                decision.getActionRiskLevel(),
+                decision.getBlastRadiusCount(),
+                decision.getCombinedRiskScore(),
+                decision.getDecision(),
+                decision.getDecisionReason(),
+                decision.getMatchedPolicyId(),
+                Instant.now()
+        );
 
-            kafkaTemplate.send(KafkaTopics.POLICY_DECISIONS, rec.targetResource(), event);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize parameters for policy decision event", e);
-        }
+        kafkaTemplate.send(KafkaTopics.POLICY_DECISIONS, rec.targetResource(), event);
     }
 }
