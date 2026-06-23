@@ -165,7 +165,7 @@ public class HealingExecutionService {
                 action.getTargetService(),
                 action.getStatus(),
                 0,
-                !action.isAutoExecuted(),
+                !Boolean.TRUE.equals(action.getAutoExecuted()),
                 "SYSTEM",
                 null,
                 null,
