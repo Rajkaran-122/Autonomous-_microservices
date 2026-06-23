@@ -117,24 +117,29 @@ public class PolicyEngineService {
     }
 
     private void emitDecisionEvent(UUID incidentId, UUID healingActionId, AnalysisEvent.Recommendation rec, PolicyDecision decision) {
-        PolicyDecisionEvent event = new PolicyDecisionEvent(
-                UUID.randomUUID(),
-                decision.getId() != null ? decision.getId() : UUID.randomUUID(),
-                healingActionId,
-                incidentId,
-                null,
-                rec.targetResource(),
-                rec.actionType(),
-                rec.confidenceScore(),
-                decision.getActionRiskLevel(),
-                decision.getBlastRadiusCount(),
-                decision.getCombinedRiskScore(),
-                decision.getDecision(),
-                decision.getDecisionReason(),
-                decision.getMatchedPolicyId(),
-                Instant.now()
-        );
+        try {
+            PolicyDecisionEvent event = new PolicyDecisionEvent(
+                    UUID.randomUUID(),
+                    decision.getId() != null ? decision.getId() : UUID.randomUUID(),
+                    healingActionId,
+                    incidentId,
+                    null,
+                    rec.targetResource(),
+                    rec.actionType(),
+                    rec.confidenceScore(),
+                    decision.getActionRiskLevel(),
+                    decision.getBlastRadiusCount(),
+                    decision.getCombinedRiskScore(),
+                    decision.getDecision(),
+                    decision.getDecisionReason(),
+                    decision.getMatchedPolicyId(),
+                    objectMapper.writeValueAsString(rec.parameters()),
+                    Instant.now()
+            );
 
-        kafkaTemplate.send(KafkaTopics.POLICY_DECISIONS, rec.targetResource(), event);
+            kafkaTemplate.send(KafkaTopics.POLICY_DECISIONS, rec.targetResource(), event);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize parameters for policy decision event", e);
+        }
     }
 }

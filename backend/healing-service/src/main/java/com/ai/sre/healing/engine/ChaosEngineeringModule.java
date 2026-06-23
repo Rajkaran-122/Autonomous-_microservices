@@ -36,11 +36,20 @@ public class ChaosEngineeringModule {
 
         // Emit chaos event to notify monitoring systems
         ChaosEvent event = new ChaosEvent(
+                UUID.randomUUID(),
                 experimentId,
+                UUID.randomUUID(),
+                null,
                 targetService,
+                "Latency Injection",
                 "NETWORK_LATENCY",
-                "STARTED",
+                "INJECTING",
+                true,
+                false,
+                0,
+                "PENDING",
                 String.format("Injected %dms latency", addedLatencyMs),
+                java.util.Collections.emptyMap(),
                 Instant.now()
         );
 
@@ -59,11 +68,20 @@ public class ChaosEngineeringModule {
         log.warn("🧪 CHAOS EXPERIMENT STARTED: Killing random pod in {}", targetService);
 
         ChaosEvent event = new ChaosEvent(
+                UUID.randomUUID(),
                 experimentId,
+                UUID.randomUUID(),
+                null,
                 targetService,
+                "Pod Termination",
                 "POD_KILL",
-                "EXECUTED",
+                "COMPLETED",
+                true,
+                false,
+                0,
+                "PENDING",
                 "Pod terminated abruptly",
+                java.util.Collections.emptyMap(),
                 Instant.now()
         );
 

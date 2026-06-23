@@ -59,16 +59,16 @@ public class HealingExecutionService {
                 .id(event.healingActionId())
                 .incidentId(event.incidentId())
                 .actionType(event.actionType())
-                .targetService(event.targetService())
-                .status("APPROVED".equals(event.approvalStatus()) ? "QUEUED" : "PENDING_APPROVAL")
-                .autoExecuted("APPROVED".equals(event.approvalStatus()))
+                .targetService(event.serviceName())
+                .status("AUTO_EXECUTE".equals(event.decision()) ? "QUEUED" : "PENDING_APPROVAL")
+                .autoExecuted("AUTO_EXECUTE".equals(event.decision()))
                 .parameters(event.parameters())
                 .rollbackSupported(isRollbackSupported(event.actionType()))
                 .build();
 
         healingActionRepository.save(action);
 
-        if ("APPROVED".equals(event.approvalStatus())) {
+        if ("AUTO_EXECUTE".equals(event.decision())) {
             executeAction(action);
         } else {
             log.info("Action {} for incident {} requires manual approval.", action.getId(), action.getIncidentId());
@@ -156,16 +156,25 @@ public class HealingExecutionService {
     private void emitHealingResult(HealingAction action, boolean success, String logs) {
         HealingEvent resultEvent = new HealingEvent(
                 UUID.randomUUID(),
-                action.getIncidentId(),
                 action.getId(),
+                action.getIncidentId(),
+                null,
+                action.getTargetService(),
                 action.getActionType(),
+                "production",
                 action.getTargetService(),
                 action.getStatus(),
-                success,
+                0,
+                !action.isAutoExecuted(),
+                "SYSTEM",
+                null,
+                null,
+                dryRun,
                 logs,
-                action.getPreExecutionState(),
-                action.getPostExecutionState(),
-                action.getCompletedAt()
+                action.getCompletedAt() != null && action.getStartedAt() != null ? 
+                    action.getCompletedAt().toEpochMilli() - action.getStartedAt().toEpochMilli() : 0,
+                success ? null : logs,
+                action.getCompletedAt() != null ? action.getCompletedAt() : Instant.now()
         );
         kafkaTemplate.send(KafkaTopics.HEALING_RESULTS, action.getTargetService(), resultEvent);
     }

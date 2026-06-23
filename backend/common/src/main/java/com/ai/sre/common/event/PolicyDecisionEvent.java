@@ -24,6 +24,7 @@ public record PolicyDecisionEvent(
         String decision,              // AUTO_EXECUTE, APPROVAL_REQUIRED, BLOCKED, MANUAL_OVERRIDE
         String decisionReason,
         UUID matchedPolicyId,
+        String parameters,
         @JsonFormat(shape = JsonFormat.Shape.STRING)
         Instant timestamp
 ) {
