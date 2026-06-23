@@ -1,0 +1,70 @@
+# Prometheus Configuration for AI SRE Platform
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+# Alerting rules for SLO burn rate
+rule_files:
+  - "rules/*.yml"
+
+scrape_configs:
+  # ==================== SPRING BOOT SERVICES ====================
+  - job_name: 'api-gateway'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['api-gateway:8080']
+        labels:
+          service: 'api-gateway'
+          tier: 'critical'
+
+  - job_name: 'log-ingestion-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['log-ingestion:8081']
+        labels:
+          service: 'log-ingestion-service'
+          tier: 'high'
+
+  - job_name: 'incident-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['incident-service:8082']
+        labels:
+          service: 'incident-service'
+          tier: 'critical'
+
+  - job_name: 'ai-engine'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['ai-engine:8083']
+        labels:
+          service: 'ai-engine'
+          tier: 'high'
+
+  - job_name: 'healing-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['healing-service:8084']
+        labels:
+          service: 'healing-service'
+          tier: 'critical'
+
+  - job_name: 'notification-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['notification-service:8085']
+        labels:
+          service: 'notification-service'
+          tier: 'medium'
+
+  # ==================== INFRASTRUCTURE ====================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka:9092']
+        labels:
+          service: 'kafka'

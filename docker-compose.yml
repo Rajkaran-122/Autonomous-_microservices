@@ -1,0 +1,174 @@
+# ============================================================
+# Autonomous AI SRE Platform — Full Application Docker Compose
+# Run: docker-compose up -d --build
+# ============================================================
+
+services:
+  # ==================== FRONTEND ====================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sre-frontend
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+    networks:
+      - sre-network
+
+  # ==================== BACKEND SERVICES ====================
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: ./api-gateway/Dockerfile
+    container_name: sre-api-gateway
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - sre-network
+
+  log-ingestion:
+    build:
+      context: ./backend
+      dockerfile: ./log-ingestion-service/Dockerfile
+    container_name: sre-log-ingestion
+    ports:
+      - "8081:8081"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - sre-network
+
+  incident-service:
+    build:
+      context: ./backend
+      dockerfile: ./incident-service/Dockerfile
+    container_name: sre-incident-service
+    ports:
+      - "8082:8082"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - sre-network
+
+  ai-engine:
+    build:
+      context: ./backend
+      dockerfile: ./ai-engine/Dockerfile
+    container_name: sre-ai-engine
+    ports:
+      - "8083:8083"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - sre-network
+
+  healing-service:
+    build:
+      context: ./backend
+      dockerfile: ./healing-service/Dockerfile
+    container_name: sre-healing-service
+    ports:
+      - "8084:8084"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - sre-network
+
+  notification-service:
+    build:
+      context: ./backend
+      dockerfile: ./notification-service/Dockerfile
+    container_name: sre-notification-service
+    ports:
+      - "8085:8085"
+    env_file:
+      - .env
+    depends_on:
+      - kafka
+    networks:
+      - sre-network
+
+  # ==================== INFRASTRUCTURE (Include from infra) ====================
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: sre-postgres-app
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    networks:
+      - sre-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: sre-redis-app
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sre-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: sre-kafka-app
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs
+    networks:
+      - sre-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  kafka_data:
+    driver: local
+
+networks:
+  sre-network:
+    driver: bridge
