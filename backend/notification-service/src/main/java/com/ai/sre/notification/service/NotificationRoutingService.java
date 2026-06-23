@@ -53,10 +53,10 @@ public class NotificationRoutingService {
             groupId = KafkaTopics.GROUP_NOTIFICATION_SERVICE
     )
     public void handleGenericNotification(NotificationEvent event) {
-        switch (event.channel().toUpperCase()) {
-            case "SLACK" -> slackProvider.sendMessage(event.recipient(), event.message());
+        switch (event.targetChannel().toUpperCase()) {
+            case "SLACK" -> slackProvider.sendMessage(event.targetRecipient(), event.message());
             case "PAGERDUTY" -> pagerDutyProvider.triggerIncident(event.title(), "Autonomous Platform", "info");
-            default -> log.warn("Unsupported notification channel: {}", event.channel());
+            default -> log.warn("Unsupported notification channel: {}", event.targetChannel());
         }
     }
 }
