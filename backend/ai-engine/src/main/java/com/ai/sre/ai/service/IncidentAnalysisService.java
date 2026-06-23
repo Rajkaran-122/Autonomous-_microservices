@@ -134,12 +134,20 @@ public class IncidentAnalysisService {
 
             AnalysisEvent analysisEvent = new AnalysisEvent(
                     UUID.randomUUID(),
-                    event.incidentId(),
                     analysis.getId(),
+                    event.incidentId(),
+                    null, // serviceId not strictly needed here
+                    event.serviceName(),
                     output.rootCause,
-                    output.confidenceScore,
+                    output.summary,
                     output.affectedServices != null ? output.affectedServices : List.of(),
                     recs,
+                    output.confidenceScore,
+                    "gpt-4o",
+                    0,
+                    System.currentTimeMillis() - startTime,
+                    false,
+                    0,
                     Instant.now()
             );
 

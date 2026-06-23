@@ -46,9 +46,9 @@ public record AnalysisEvent(
      */
     public record Recommendation(
             String actionType,        // POD_RESTART, SCALE_UP, ROLLBACK, CACHE_CLEAR
+            String targetResource,
             String description,
             int confidenceScore,      // 0-100
-            String targetResource,
-            String riskLevel          // LOW, MEDIUM, HIGH, CRITICAL
+            java.util.Map<String, Object> parameters
     ) {}
 }

@@ -76,7 +76,7 @@ public class PolicyEngineService {
                     .healingActionId(healingActionId)
                     .incidentId(event.incidentId())
                     .actionType(rec.actionType())
-                    .targetService(rec.target())
+                    .targetService(rec.targetResource())
                     .aiConfidenceScore(rec.confidenceScore())
                     .actionRiskLevel(matchedPolicy.getActionRiskLevel())
                     .blastRadiusCount(blastRadius)
@@ -91,7 +91,7 @@ public class PolicyEngineService {
 
             policyDecisionRepository.save(decisionRecord);
             log.info("Policy Engine Decision: {} for {} on {}. Reason: {}", 
-                    assessment.decision(), rec.actionType(), rec.target(), assessment.reason());
+                    assessment.decision(), rec.actionType(), rec.targetResource(), assessment.reason());
 
             // Emit the decision to Kafka
             emitDecisionEvent(event.incidentId(), healingActionId, rec, decisionRecord);
@@ -102,7 +102,7 @@ public class PolicyEngineService {
         for (PolicyRule policy : policies) {
             boolean matchService = policy.getServicePattern() == null || 
                                  policy.getServicePattern().equals("*") ||
-                                 Pattern.compile(policy.getServicePattern()).matcher(rec.target()).matches();
+                                 Pattern.compile(policy.getServicePattern()).matcher(rec.targetResource()).matches();
             
             boolean matchAction = policy.getActionType() == null ||
                                 policy.getActionType().equals("*") ||
@@ -122,7 +122,7 @@ public class PolicyEngineService {
                     incidentId,
                     healingActionId,
                     rec.actionType(),
-                    rec.target(),
+                    rec.targetResource(),
                     decision.getDecision(),
                     decision.getDecisionReason(),
                     decision.getCombinedRiskScore(),
@@ -131,7 +131,7 @@ public class PolicyEngineService {
                     decision.getCreatedAt()
             );
 
-            kafkaTemplate.send(KafkaTopics.POLICY_DECISIONS, rec.target(), event);
+            kafkaTemplate.send(KafkaTopics.POLICY_DECISIONS, rec.targetResource(), event);
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize parameters for policy decision event", e);
         }
