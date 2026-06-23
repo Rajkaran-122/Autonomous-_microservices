@@ -10,9 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.input.PromptTemplate;
-import dev.langchain4j.model.output.Response;
-import dev.langchain4j.model.chat.response.ChatResponse;
-import dev.langchain4j.model.chat.response.ChatResponseMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -103,8 +100,8 @@ public class IncidentAnalysisService {
                     "serviceName", event.serviceName()
             ));
 
-            ChatResponse response = chatLanguageModel.chat(prompt.toUserMessage());
-            String jsonOutput = extractJson(response.aiMessage().text());
+            String responseText = chatLanguageModel.generate(prompt.text());
+            String jsonOutput = extractJson(responseText);
             
             // Parse LLM output
             LLMOutput output = objectMapper.readValue(jsonOutput, LLMOutput.class);
