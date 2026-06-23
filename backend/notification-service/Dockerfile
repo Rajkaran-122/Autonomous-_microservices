@@ -2,12 +2,9 @@
 FROM maven:3.9.6-eclipse-temurin-21-alpine AS build
 WORKDIR /build
 
-COPY pom.xml .
-COPY common ./common
-COPY notification-service ./notification-service
+COPY . .
 
-RUN mvn -pl common install -DskipTests
-RUN mvn -pl notification-service package -DskipTests
+RUN mvn clean package -pl notification-service -am -DskipTests
 
 # Run stage
 FROM eclipse-temurin:21-jdk-alpine

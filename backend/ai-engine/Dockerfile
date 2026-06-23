@@ -2,12 +2,9 @@
 FROM maven:3.9.6-eclipse-temurin-21-alpine AS build
 WORKDIR /build
 
-COPY pom.xml .
-COPY common ./common
-COPY ai-engine ./ai-engine
+COPY . .
 
-RUN mvn -pl common install -DskipTests
-RUN mvn -pl ai-engine package -DskipTests
+RUN mvn clean package -pl ai-engine -am -DskipTests
 
 # Run stage
 FROM eclipse-temurin:21-jdk-alpine
