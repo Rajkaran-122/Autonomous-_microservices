@@ -51,6 +51,271 @@
 └──────┘└──────┘└──────┘└──────┘└──────┘
 ```
 
+### 1. High-Level System Architecture
+
+```mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'darkMode': true,
+      'background': '#000000',
+      'primaryColor': '#1a1a1a',
+      'primaryBorderColor': '#ffffff',
+      'primaryTextColor': '#ffffff',
+      'secondaryColor': '#2a2a2a',
+      'secondaryBorderColor': '#dddddd',
+      'secondaryTextColor': '#ffffff',
+      'tertiaryColor': '#333333',
+      'tertiaryBorderColor': '#bbbbbb',
+      'lineColor': '#ffffff',
+      'fontFamily': 'Inter, sans-serif'
+    }
+  }
+}%%
+graph TD
+    classDef frontend fill:#111111,stroke:#ffffff,stroke-width:2px,color:#ffffff;
+    classDef gateway fill:#222222,stroke:#ffffff,stroke-width:2px,color:#ffffff;
+    classDef service fill:#333333,stroke:#ffffff,stroke-width:2px,color:#ffffff;
+    classDef kafka fill:#444444,stroke:#ffffff,stroke-width:2px,color:#ffffff;
+    classDef datastore fill:#555555,stroke:#ffffff,stroke-width:2px,color:#ffffff;
+
+    Client(["Web Dashboard (Next.js)"]):::frontend
+    
+    Gateway{"API Gateway (Spring Boot)"}:::gateway
+
+    subgraph Core Microservices
+        LogIngest["Log Ingestion Service"]:::service
+        IncidentSvc["Incident Service"]:::service
+        AIEngine["AI Engine (LLM RCA)"]:::service
+        HealingSvc["Healing Service"]:::service
+        NotifSvc["Notification Service"]:::service
+    end
+
+    Kafka[["Apache Kafka (Message Broker)"]]:::kafka
+
+    subgraph Datastores & Infrastructure
+        Postgres[("PostgreSQL (Relational/Vectors)")]:::datastore
+        Redis[("Redis (Cache/Rate Limits)")]:::datastore
+        Prometheus[("Prometheus/Grafana")]:::datastore
+        K8sAPI(("Kubernetes API")):::datastore
+        Jaeger[("Jaeger (Tracing)")]:::datastore
+    end
+
+    Client -->|REST / WebSocket| Gateway
+    Gateway -->|Auth / Routing| LogIngest
+    Gateway -->|Auth / Routing| IncidentSvc
+    Gateway -->|Auth / Routing| AIEngine
+    Gateway -->|Auth / Routing| HealingSvc
+    Gateway -->|Auth / Routing| NotifSvc
+
+    LogIngest -->|Publish Logs| Kafka
+    IncidentSvc -->|Publish Alerts| Kafka
+    AIEngine -->|Publish Analysis| Kafka
+    HealingSvc -->|Publish Actions| Kafka
+    NotifSvc -->|Subscribe / Alert| Kafka
+
+    Kafka <-->|Read/Write| Postgres
+    Kafka <-->|Read/Write| Redis
+    Kafka <-->|Read/Write| Prometheus
+    Kafka <-->|Read/Write| Jaeger
+
+    HealingSvc -->|Execute Remediation| K8sAPI
+```
+
+### 2. Autonomous Incident Resolution Sequence
+
+```mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'darkMode': true,
+      'background': '#000000',
+      'actorBkg': '#111111',
+      'actorBorder': '#ffffff',
+      'actorTextColor': '#ffffff',
+      'signalColor': '#ffffff',
+      'signalTextColor': '#ffffff',
+      'sequenceNumberColor': '#000000',
+      'noteBkgColor': '#333333',
+      'noteBorderColor': '#ffffff',
+      'noteTextColor': '#ffffff',
+      'fontFamily': 'Inter, sans-serif'
+    }
+  }
+}%%
+sequenceDiagram
+    autonumber
+    participant App as Monitored App
+    participant LogSvc as Log Ingestion
+    participant Kafka as Apache Kafka
+    participant IncSvc as Incident Service
+    participant AI as AI Engine (GPT-4o)
+    participant Heal as Healing Service
+    participant K8s as Kubernetes API
+    participant Slack as Notification Svc
+
+    App->>LogSvc: Send Logs / Metrics (Error Spike)
+    LogSvc->>Kafka: Publish to 'logs.raw' topic
+    Kafka->>IncSvc: Consume & Analyze
+    Note over IncSvc: Detects anomaly & SLO burn
+    IncSvc->>Kafka: Publish 'incident.detected' event
+    Kafka->>AI: Trigger RCA & Remediation Policy
+    Note over AI: RAG queries against Knowledge Base
+    AI-->>Kafka: Publish 'incident.rca_complete' event
+    Kafka->>Heal: Consume remediation plan (e.g., Restart Pod)
+    Heal->>K8s: Execute Action (Rollback / Scale / Restart)
+    K8s-->>Heal: Action Success
+    Heal->>Kafka: Publish 'incident.healed' event
+    Kafka->>Slack: Route to Slack & PagerDuty
+    Slack-->>App: (Admin sees alert and RCA in channel)
+```
+
+### 3. Data Flow Diagram (DFD)
+
+```mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'darkMode': true,
+      'background': '#000000',
+      'primaryColor': '#111111',
+      'primaryBorderColor': '#ffffff',
+      'primaryTextColor': '#ffffff',
+      'lineColor': '#ffffff',
+      'fontFamily': 'Inter, sans-serif'
+    }
+  }
+}%%
+flowchart TD
+    %% External Entities
+    ExtApps[Monitored Microservices]:::ext
+    K8s[Kubernetes Cluster API]:::ext
+    Slack[Slack / PagerDuty]:::ext
+
+    %% Processes
+    LogIngest((1. Log Ingestion & Parsing)):::proc
+    AnomalyDet((2. Incident Detection & SLO Engine)):::proc
+    AIEngine((3. AI Root Cause Analysis)):::proc
+    HealingEngine((4. Policy & Self-Healing)):::proc
+    NotificationEngine((5. Notification Routing)):::proc
+
+    %% Data Stores
+    Kafka{Apache Kafka Event Bus}:::store
+    Postgres[(PostgreSQL DB)]:::store
+    VectorDB[(pgvector Knowledge Base)]:::store
+
+    classDef ext fill:#111111,stroke:#ffffff,stroke-width:2px,color:#ffffff;
+    classDef proc fill:#222222,stroke:#ffffff,stroke-width:2px,shape:circle,color:#ffffff;
+    classDef store fill:#333333,stroke:#ffffff,stroke-width:2px,color:#ffffff;
+
+    %% Flows
+    ExtApps -- "Raw Logs/Metrics" --> LogIngest
+    LogIngest -- "Structured Logs" --> Kafka
+    Kafka -- "Stream Processing" --> AnomalyDet
+    AnomalyDet -- "Store Violations" --> Postgres
+    AnomalyDet -- "Incident Detected Event" --> Kafka
+    
+    Kafka -- "Trigger Analysis" --> AIEngine
+    AIEngine -- "Semantic Search" --> VectorDB
+    AIEngine -- "Save RCA/Recommendations" --> Postgres
+    AIEngine -- "RCA Complete Event" --> Kafka
+
+    Kafka -- "Trigger Remediation" --> HealingEngine
+    HealingEngine -- "Check Rules" --> Postgres
+    HealingEngine -- "Execute Actions (e.g., Restart)" --> K8s
+    HealingEngine -- "Healing Result Event" --> Kafka
+
+    Kafka -- "Routing Events" --> NotificationEngine
+    NotificationEngine -- "Alerts & Context" --> Slack
+```
+
+### 4. Database Schema (ER Diagram)
+
+```mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'darkMode': true,
+      'background': '#000000',
+      'primaryColor': '#111111',
+      'primaryBorderColor': '#ffffff',
+      'primaryTextColor': '#ffffff',
+      'lineColor': '#ffffff',
+      'fontFamily': 'Inter, sans-serif'
+    }
+  }
+}%%
+erDiagram
+    SERVICES ||--o{ INCIDENTS : "experiences"
+    SERVICES ||--o{ SLO_DEFINITIONS : "monitored by"
+    SERVICES ||--o{ SERVICE_DEPENDENCIES : "has"
+    SERVICES ||--o{ CANARY_DEPLOYMENTS : "deploys"
+    SERVICES ||--o{ CHAOS_EXPERIMENTS : "targeted by"
+
+    SLO_DEFINITIONS ||--o{ ERROR_BUDGET_SNAPSHOTS : "has"
+    SLO_DEFINITIONS ||--o{ SLO_VIOLATIONS : "triggers"
+    
+    INCIDENTS ||--o{ INCIDENT_TIMELINE : "contains"
+    INCIDENTS ||--o{ AI_ANALYSES : "analyzed by"
+    INCIDENTS ||--o{ HEALING_ACTIONS : "remediated by"
+    INCIDENTS ||--o{ KNOWLEDGE_BASE : "documented in"
+    
+    HEALING_ACTIONS ||--o{ POLICY_DECISIONS : "evaluated by"
+    POLICY_RULES ||--o{ POLICY_DECISIONS : "enforces"
+
+    SERVICES {
+        uuid id PK
+        string name
+        string tier
+        decimal slo_target
+        string health_status
+    }
+    
+    INCIDENTS {
+        uuid id PK
+        uuid service_id FK
+        string severity
+        string status
+        string root_cause
+        timestamp detected_at
+    }
+
+    SLO_DEFINITIONS {
+        uuid id PK
+        uuid service_id FK
+        string slo_type
+        decimal target_percentage
+        string sli_query
+    }
+
+    AI_ANALYSES {
+        uuid id PK
+        uuid incident_id FK
+        string root_cause
+        int confidence_score
+        jsonb recommendations
+    }
+
+    HEALING_ACTIONS {
+        uuid id PK
+        uuid incident_id FK
+        string action_type
+        string status
+        boolean requires_approval
+    }
+
+    POLICY_RULES {
+        uuid id PK
+        string name
+        string action_risk_level
+        int auto_execute_threshold
+    }
+```
+
 ## Features
 
 ### Core Platform
