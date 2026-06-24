@@ -127,8 +127,18 @@ public class HealingExecutionService {
 
     private boolean performKubernetesAction(HealingAction action) {
         String namespace = "production";
-        if (action.getParameters() != null && action.getParameters().containsKey("namespace")) {
-            namespace = action.getParameters().get("namespace").toString();
+        if (action.getParameters() != null && !action.getParameters().isEmpty()) {
+            try {
+                java.util.Map<String, Object> params = objectMapper.readValue(
+                        action.getParameters(), 
+                        new com.fasterxml.jackson.core.type.TypeReference<java.util.Map<String, Object>>() {}
+                );
+                if (params.containsKey("namespace")) {
+                    namespace = params.get("namespace").toString();
+                }
+            } catch (JsonProcessingException e) {
+                log.warn("Failed to parse parameters JSON for action {}: {}", action.getId(), e.getMessage());
+            }
         }
 
         return switch (action.getActionType()) {
