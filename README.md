@@ -19,38 +19,6 @@
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                         FRONTEND (Next.js)                           │
-│   Dashboard · Incidents · SLO Burn Rate · Dependency Graph           │
-│   AI Copilot · Canary Deployments · Chaos Engineering · Traces       │
-└─────────────────────────────┬────────────────────────────────────────┘
-                              │ REST / WebSocket
-┌─────────────────────────────▼────────────────────────────────────────┐
-│                       API GATEWAY (Spring Boot)                       │
-│   Auth (JWT) · RBAC · Rate Limiting · Feature Flags · Tracing         │
-└──┬──────┬──────┬──────┬──────┬──────┬────────────────────────────────┘
-   │      │      │      │      │      │
-   ▼      ▼      ▼      ▼      ▼      ▼
-┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐
-│ LOG  ││INCID.││  AI  ││HEAL- ││NOTIF.│
-│INGEST││ SVC  ││ENGINE││ ING  ││ SVC  │
-│+Replay│+SLO  ││+Guard││+Canary│      │
-│      ││+Deps ││rails ││+Chaos││      │
-└──┬───┘└──┬───┘└──┬───┘└──┬───┘└──┬───┘
-   │       │       │       │       │
-   ▼       ▼       ▼       ▼       ▼
-┌──────────────────────────────────────┐
-│          APACHE KAFKA (17 Topics)     │
-└──────────────────────────────────────┘
-   │       │       │       │       │
-   ▼       ▼       ▼       ▼       ▼
-┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐
-│Postgr││Redis ││Prom. ││K8s   ││Jaeger│
-│ SQL  ││      ││Grafana│ API  ││      │
-└──────┘└──────┘└──────┘└──────┘└──────┘
-```
-
 ### 1. High-Level System Architecture
 
 ```mermaid
