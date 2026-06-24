@@ -255,9 +255,6 @@
                     <configuration>
                         <source>21</source>
                         <target>21</target>
-                        <compilerArgs>
-                            <arg>--enable-preview</arg>
-                        </compilerArgs>
                         <annotationProcessorPaths>
                             <path>
                                 <groupId>org.projectlombok</groupId>
@@ -270,9 +267,6 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <configuration>
-                        <argLine>--enable-preview</argLine>
-                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.avro</groupId>
@@ -312,9 +306,6 @@
                                 </goals>
                             </execution>
                         </executions>
-                        <configuration>
-                            <argLine>--enable-preview</argLine>
-                        </configuration>
                     </plugin>
                 </plugins>
             </build>
