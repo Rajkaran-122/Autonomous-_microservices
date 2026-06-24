@@ -211,7 +211,7 @@ public class IncidentAnalysisService {
 
         } catch (Exception e) {
             log.error("AI Analysis failed for incident {}: {}", event.incidentId(), e.getMessage(), e);
-            throw e; // Rethrow to trigger Resilience4j retry/circuit breaker
+            throw new RuntimeException("AI Analysis failed", e); // Rethrow to trigger Resilience4j retry/circuit breaker
         }
     }
 
