@@ -31,16 +31,19 @@ public class HealingExecutionService {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private final boolean dryRun;
+    private final boolean requireApproval;
     private KubernetesClient kubernetesClient;
 
     public HealingExecutionService(HealingActionRepository healingActionRepository,
                                    KafkaTemplate<String, Object> kafkaTemplate,
                                    ObjectMapper objectMapper,
-                                   @Value("${sre.kubernetes.dry-run:true}") boolean dryRun) {
+                                   @Value("${sre.kubernetes.dry-run:false}") boolean dryRun,
+                                   @Value("${sre.healing.require-approval:true}") boolean requireApproval) {
         this.healingActionRepository = healingActionRepository;
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
         this.dryRun = dryRun;
+        this.requireApproval = requireApproval;
         try {
             this.kubernetesClient = new KubernetesClientBuilder().build();
             log.info("Kubernetes client initialized. Dry run mode: {}", dryRun);
@@ -60,18 +63,29 @@ public class HealingExecutionService {
                 .incidentId(event.incidentId())
                 .actionType(event.actionType())
                 .targetService(event.serviceName())
-                .status("AUTO_EXECUTE".equals(event.decision()) ? "QUEUED" : "PENDING_APPROVAL")
-                .autoExecuted("AUTO_EXECUTE".equals(event.decision()))
+                .status(requireApproval ? "PENDING_APPROVAL" : "QUEUED")
+                .autoExecuted(!requireApproval)
                 .parameters(event.parameters())
                 .rollbackSupported(isRollbackSupported(event.actionType()))
                 .build();
 
         healingActionRepository.save(action);
 
-        if ("AUTO_EXECUTE".equals(event.decision())) {
-            executeAction(action);
+        if (!requireApproval || "AUTO_EXECUTE".equals(event.decision())) {
+            // Wait, actually if global requireApproval is false, or specific decision is auto
+            if (!requireApproval) {
+                action.setStatus("QUEUED");
+                healingActionRepository.save(action);
+                executeAction(action);
+            } else if ("AUTO_EXECUTE".equals(event.decision())) {
+                action.setStatus("QUEUED");
+                healingActionRepository.save(action);
+                executeAction(action);
+            } else {
+                log.info("Action {} for incident {} requires manual approval.", action.getId(), action.getIncidentId());
+            }
         } else {
-            log.info("Action {} for incident {} requires manual approval.", action.getId(), action.getIncidentId());
+            log.info("Action {} for incident {} requires manual approval due to global settings.", action.getId(), action.getIncidentId());
         }
     }
 
@@ -112,9 +126,14 @@ public class HealingExecutionService {
     }
 
     private boolean performKubernetesAction(HealingAction action) {
+        String namespace = "production";
+        if (action.getParameters() != null && action.getParameters().containsKey("namespace")) {
+            namespace = action.getParameters().get("namespace").toString();
+        }
+
         return switch (action.getActionType()) {
-            case "POD_RESTART" -> restartPods(action.getTargetService(), "production"); // Assume namespace for now
-            case "SCALE_UP" -> scaleDeployment(action.getTargetService(), "production", 1);
+            case "POD_RESTART" -> restartPods(action.getTargetService(), namespace);
+            case "SCALE_UP" -> scaleDeployment(action.getTargetService(), namespace, 1);
             default -> {
                 log.warn("Unsupported action type for real execution: {}", action.getActionType());
                 yield false;

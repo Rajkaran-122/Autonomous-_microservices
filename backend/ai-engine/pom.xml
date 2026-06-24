@@ -58,6 +58,17 @@
         </dependency>
         <!-- Adding explicit OpenAI dependency if needed, but starter includes it -->
 
+        <!-- Resilience4j for external API circuit breakers -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-boot3</artifactId>
+            <version>2.2.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>

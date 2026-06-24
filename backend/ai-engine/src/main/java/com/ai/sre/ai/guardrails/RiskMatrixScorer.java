@@ -13,6 +13,12 @@ import java.util.Map;
 @Component
 public class RiskMatrixScorer {
 
+    private final DeterministicGuardrailValidator validator;
+
+    public RiskMatrixScorer(DeterministicGuardrailValidator validator) {
+        this.validator = validator;
+    }
+
     private static final Map<String, Integer> RISK_WEIGHTS = Map.of(
             "LOW", 10,
             "MEDIUM", 40,
@@ -54,6 +60,13 @@ public class RiskMatrixScorer {
         if ("CRITICAL".equals(policy.getActionRiskLevel()) && confidence < 95) {
             decision = "BLOCKED";
             reason = "Action has CRITICAL risk level and requires >=95% confidence";
+        }
+
+        // --- Deterministic Guardrail Override ---
+        String validationError = validator.validate(recommendation);
+        if (validationError != null) {
+            decision = "BLOCKED";
+            reason = validationError; // Overrides the LLM's confidence entirely
         }
 
         return new RiskAssessment(

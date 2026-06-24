@@ -80,6 +80,7 @@ CREATE TABLE incident_timeline (
 );
 
 CREATE INDEX idx_timeline_incident ON incident_timeline(incident_id, created_at);
+CREATE INDEX idx_timeline_metadata ON incident_timeline USING gin(metadata);
 
 -- AI Analysis Results
 CREATE TABLE ai_analyses (
@@ -145,6 +146,7 @@ CREATE INDEX idx_audit_log_actor ON audit_log(actor);
 CREATE INDEX idx_audit_log_action ON audit_log(action);
 CREATE INDEX idx_audit_log_resource ON audit_log(resource_type, resource_id);
 CREATE INDEX idx_audit_log_created ON audit_log(created_at DESC);
+CREATE INDEX idx_audit_log_details ON audit_log USING gin(details);
 
 -- Knowledge Base (for RAG vector search)
 CREATE TABLE knowledge_base (
@@ -391,6 +393,7 @@ CREATE TABLE feature_flag_audit (
 );
 
 CREATE INDEX idx_flag_audit_flag ON feature_flag_audit(flag_id, created_at DESC);
+CREATE INDEX idx_flag_audit_new_state ON feature_flag_audit USING gin(new_state);
 
 -- Trace Metadata (search index — Jaeger handles trace storage)
 CREATE TABLE trace_metadata (
@@ -681,3 +684,65 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER calculate_incident_mttr BEFORE UPDATE ON incidents
     FOR EACH ROW EXECUTE FUNCTION calculate_mttr();
+
+-- ============================================================
+-- AUTOMATED PARTITION MANAGEMENT & DATA RETENTION
+-- ============================================================
+
+-- Function to automatically create partitions for the next month
+CREATE OR REPLACE FUNCTION create_next_month_partitions()
+RETURNS void AS $$
+DECLARE
+    next_month DATE := date_trunc('month', NOW() + INTERVAL '1 month');
+    next_next_month DATE := date_trunc('month', NOW() + INTERVAL '2 months');
+    partition_suffix TEXT := to_char(next_month, 'YYYY_MM');
+    log_query TEXT;
+    event_query TEXT;
+BEGIN
+    -- Create partition for log_entries
+    log_query := format('CREATE TABLE IF NOT EXISTS log_entries_%s PARTITION OF log_entries FOR VALUES FROM (%L) TO (%L);', 
+                        partition_suffix, next_month, next_next_month);
+    EXECUTE log_query;
+
+    -- Create partition for event_store
+    event_query := format('CREATE TABLE IF NOT EXISTS event_store_%s PARTITION OF event_store FOR VALUES FROM (%L) TO (%L);', 
+                          partition_suffix, next_month, next_next_month);
+    EXECUTE event_query;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to automatically drop partitions older than a specified number of days
+CREATE OR REPLACE FUNCTION drop_old_partitions(retention_days INT DEFAULT 90)
+RETURNS void AS $$
+DECLARE
+    cutoff_date DATE := date_trunc('month', NOW() - (retention_days || ' days')::interval);
+    partition_record RECORD;
+    drop_query TEXT;
+BEGIN
+    FOR partition_record IN 
+        SELECT inhrelid::regclass AS table_name
+        FROM pg_inherits
+        WHERE inhparent = 'log_entries'::regclass OR inhparent = 'event_store'::regclass
+    LOOP
+        -- Simple heuristic: if the table name ends with YYYY_MM, extract it and compare
+        -- In a robust production environment, you would query pg_class and pg_get_expr
+        -- For this script, we'll use a regex match on the table name
+        IF partition_record.table_name::text ~ '.*_[0-9]{4}_[0-9]{2}$' THEN
+            DECLARE
+                suffix TEXT := substring(partition_record.table_name::text from '([0-9]{4}_[0-9]{2})$');
+                part_date DATE := to_date(suffix || '_01', 'YYYY_MM_DD');
+            BEGIN
+                IF part_date < cutoff_date THEN
+                    drop_query := format('DROP TABLE IF EXISTS %I;', partition_record.table_name);
+                    EXECUTE drop_query;
+                    RAISE NOTICE 'Dropped old partition: %', partition_record.table_name;
+                END IF;
+            END;
+        END IF;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Note: In production, schedule these functions using an external cron job or pg_cron:
+-- SELECT cron.schedule('0 0 1 * *', $$SELECT create_next_month_partitions();$$);
+-- SELECT cron.schedule('0 1 * * *', $$SELECT drop_old_partitions(90);$$);

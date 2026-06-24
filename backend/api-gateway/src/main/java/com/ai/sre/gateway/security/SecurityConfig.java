@@ -53,6 +53,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/slo/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/incidents/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/healing/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/dashboard/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

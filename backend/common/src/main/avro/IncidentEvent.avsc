@@ -1,0 +1,24 @@
+{
+  "namespace": "com.ai.sre.common.event.avro",
+  "type": "record",
+  "name": "IncidentEventAvro",
+  "fields": [
+    { "name": "eventId", "type": "string", "logicalType": "uuid" },
+    { "name": "incidentId", "type": "string", "logicalType": "uuid" },
+    { "name": "title", "type": "string" },
+    { "name": "description", "type": ["null", "string"], "default": null },
+    { "name": "severity", "type": "string" },
+    { "name": "status", "type": "string" },
+    { "name": "serviceId", "type": ["null", "string"], "logicalType": "uuid", "default": null },
+    { "name": "serviceName", "type": "string" },
+    { "name": "namespace", "type": "string" },
+    { "name": "correlationKey", "type": ["null", "string"], "default": null },
+    { "name": "affectedComponents", "type": { "type": "array", "items": "string" } },
+    { "name": "metricsSnapshot", "type": ["null", { "type": "map", "values": "double" }], "default": null },
+    { "name": "currentErrorRate", "type": "double" },
+    { "name": "currentLatencyMs", "type": "double" },
+    { "name": "currentTrafficTps", "type": "double" },
+    { "name": "detectedAt", "type": "long", "logicalType": "timestamp-millis" },
+    { "name": "timestamp", "type": "long", "logicalType": "timestamp-millis" }
+  ]
+}

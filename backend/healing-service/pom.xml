@@ -48,6 +48,12 @@
             <artifactId>kubernetes-client</artifactId>
             <version>6.10.0</version>
         </dependency>
+
+        <!-- Quartz Scheduler for Chaos Engineering -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-quartz</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
