@@ -5,6 +5,9 @@ import java.time.Duration;
 public interface AnomalyStatePort {
     Long incrementErrorCount(String serviceName, Duration window);
     void resetErrorCount(String serviceName);
-    boolean isAlreadyDeduplicated(String serviceName);
-    void markAsDeduplicated(String serviceName, Duration window);
+    boolean tryAcquireDedupLock(String serviceName, Duration window);
+    
+    // Z-Score Anomaly Methods
+    void recordErrorMinute(String serviceName, long minuteEpoch);
+    java.util.List<Long> getHistoricalErrorCounts(String serviceName, long currentMinuteEpoch, int maxBuckets);
 }

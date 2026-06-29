@@ -32,14 +32,35 @@ public class RedisAnomalyStateAdapter implements AnomalyStatePort {
     }
 
     @Override
-    public boolean isAlreadyDeduplicated(String serviceName) {
+    public boolean tryAcquireDedupLock(String serviceName, Duration window) {
         String dedupKey = "sre:dedup:" + serviceName;
-        return Boolean.TRUE.equals(redisTemplate.hasKey(dedupKey));
+        // setIfAbsent is an atomic SETNX operation
+        return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(dedupKey, "1", window));
     }
 
     @Override
-    public void markAsDeduplicated(String serviceName, Duration window) {
-        String dedupKey = "sre:dedup:" + serviceName;
-        redisTemplate.opsForValue().set(dedupKey, "1", window);
+    public void recordErrorMinute(String serviceName, long minuteEpoch) {
+        String historyKey = "sre:history:" + serviceName;
+        redisTemplate.opsForHash().increment(historyKey, String.valueOf(minuteEpoch), 1);
+        // Ensure the history expires after a few hours to prevent bloat
+        redisTemplate.expire(historyKey, Duration.ofHours(3));
+    }
+
+    @Override
+    public java.util.List<Long> getHistoricalErrorCounts(String serviceName, long currentMinuteEpoch, int maxBuckets) {
+        String historyKey = "sre:history:" + serviceName;
+        java.util.List<Long> counts = new java.util.ArrayList<>();
+        
+        // Fetch up to maxBuckets of previous minutes
+        for (int i = 1; i <= maxBuckets; i++) {
+            long targetMinute = currentMinuteEpoch - i;
+            Object val = redisTemplate.opsForHash().get(historyKey, String.valueOf(targetMinute));
+            if (val != null) {
+                counts.add(Long.parseLong(val.toString()));
+            } else {
+                counts.add(0L); // No errors in that minute
+            }
+        }
+        return counts;
     }
 }

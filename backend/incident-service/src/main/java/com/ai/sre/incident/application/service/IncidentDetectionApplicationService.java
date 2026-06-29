@@ -19,8 +19,9 @@ public class IncidentDetectionApplicationService implements DetectAnomalyUseCase
 
     private static final Logger log = LoggerFactory.getLogger(IncidentDetectionApplicationService.class);
     
-    private static final int ERROR_THRESHOLD = 5;
-    private static final Duration ERROR_WINDOW = Duration.ofMinutes(5);
+    private static final int Z_SCORE_THRESHOLD = 3;
+    private static final int MIN_SAMPLES = 5;
+    private static final int HISTORY_MINUTES = 60;
     private static final Duration DEDUP_WINDOW = Duration.ofMinutes(15);
 
     private final IncidentRepositoryPort repositoryPort;
@@ -44,30 +45,57 @@ public class IncidentDetectionApplicationService implements DetectAnomalyUseCase
         String serviceName = event.serviceName();
 
         try {
-            Long errorCount = anomalyStatePort.incrementErrorCount(serviceName, ERROR_WINDOW);
+            long currentMinute = Instant.now().getEpochSecond() / 60;
+            
+            // 1. Record this error in the current minute bucket
+            anomalyStatePort.recordErrorMinute(serviceName, currentMinute);
+            
+            // 2. We still increment the rolling counter to know how many happened recently
+            Long currentWindowErrors = anomalyStatePort.incrementErrorCount(serviceName, Duration.ofMinutes(1));
 
-            if (errorCount != null && errorCount >= ERROR_THRESHOLD) {
-                if (!anomalyStatePort.isAlreadyDeduplicated(serviceName)) {
-                    createIncident(event, errorCount);
-                    anomalyStatePort.markAsDeduplicated(serviceName, DEDUP_WINDOW);
-                    anomalyStatePort.resetErrorCount(serviceName);
+            // 3. Fetch historical baseline
+            List<Long> history = anomalyStatePort.getHistoricalErrorCounts(serviceName, currentMinute, HISTORY_MINUTES);
+            
+            // Need a minimum baseline to compute standard deviation
+            long nonZeroBuckets = history.stream().filter(c -> c > 0).count();
+            
+            if (nonZeroBuckets >= MIN_SAMPLES && currentWindowErrors != null) {
+                double mean = history.stream().mapToDouble(Long::doubleValue).average().orElse(0.0);
+                double variance = history.stream().mapToDouble(val -> Math.pow(val - mean, 2)).average().orElse(0.0);
+                double stdDev = Math.sqrt(variance);
+                
+                // Avoid division by zero if stdDev is 0
+                double zScore = (stdDev > 0) ? (currentWindowErrors - mean) / stdDev : 0;
+                
+                log.debug("Service {} - Mean: {}, StdDev: {}, Current: {}, Z-Score: {}", serviceName, mean, stdDev, currentWindowErrors, zScore);
+
+                if (zScore >= Z_SCORE_THRESHOLD) {
+                    if (anomalyStatePort.tryAcquireDedupLock(serviceName, DEDUP_WINDOW)) {
+                        createIncident(event, currentWindowErrors, zScore);
+                    }
+                }
+            } else if (currentWindowErrors != null && currentWindowErrors > 50) {
+                // Fallback for massive instant spikes before baseline is established
+                if (anomalyStatePort.tryAcquireDedupLock(serviceName, DEDUP_WINDOW)) {
+                    createIncident(event, currentWindowErrors, 99.0);
                 }
             }
+            
         } catch (Exception e) {
             log.error("Error in anomaly detection for service={}: {}", serviceName, e.getMessage(), e);
         }
     }
 
-    private void createIncident(LogEvent event, Long errorCount) {
+    private void createIncident(LogEvent event, Long errorCount, double zScore) {
         String correlationKey = event.serviceName() + "-error-" +
                 Instant.now().toString().substring(0, 13);
 
         String severity = determineSeverity(errorCount, event);
 
         Incident incident = Incident.builder()
-                .title("High error rate on " + event.serviceName())
-                .description(String.format("Error rate spike detected: %d errors in %d minutes. Latest: %s",
-                        errorCount, ERROR_WINDOW.toMinutes(), truncate(event.message(), 200)))
+                .title("Anomalous error rate on " + event.serviceName())
+                .description(String.format("Statistical anomaly detected. Errors: %d/min. Z-Score: %.2f. Latest log: %s",
+                        errorCount, zScore, truncate(event.message(), 200)))
                 .severity(severity)
                 .correlationKey(correlationKey)
                 .createdBy("anomaly-detector")
@@ -77,8 +105,8 @@ public class IncidentDetectionApplicationService implements DetectAnomalyUseCase
         incident.markAsDetected();
         incident = repositoryPort.save(incident);
 
-        log.warn("🚨 Incident created: {} (severity={}, service={})",
-                incident.getId(), severity, event.serviceName());
+        log.warn("🚨 Incident created: {} (severity={}, service={}, zScore={})",
+                incident.getId(), severity, event.serviceName(), zScore);
 
         IncidentEvent incidentEvent = new IncidentEvent(
                 UUID.randomUUID(),

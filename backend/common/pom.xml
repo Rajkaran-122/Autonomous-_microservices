@@ -40,6 +40,12 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
+        <!-- Spring AOP for Idempotency Interceptor -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
         <!-- JWT Security -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
